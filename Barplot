@@ -7,6 +7,8 @@ stderr <- function(x, na.rm=FALSE) {
   if (na.rm) x <- na.omit(x)
   sqrt(var(x)/length(x))
 }
+library(extrafont)
+windowsFonts(Times=windowsFont("TT Arial"))#
 setwd("C:\\Users\\ADMIN\\Desktop\\D\\Step 1 NDVI_TCC_inequality")
 Final<-read.table("origin_data.csv",header=T, na.strings = "NA",sep=",")
 Final = na.omit(Final)
@@ -85,14 +87,14 @@ ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Race)) +
         axis.text = element_text(size=24,face="plain",color="black"),
         panel.background=element_rect(colour="black",fill=NA),
         panel.grid.minor=element_blank(),
-        text=element_text(size=24,  family="Times"),
+        text=element_text(size=24),
         legend.position="right",
-        legend.text = element_text(size=24, 
-                                   face="plain"),
+        legend.text = element_text(size=24
+                                   ),
         legend.background=element_rect(colour=NA,fill=NA),
         axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
   ylim(0,0.6)
-ggsave("NDVI_Race.jpg",plot = ND,dpi=600,width = 8,height = 5)
+ggsave("NDVI_Race.pdf",plot = ND,dpi=600,width = 8,height = 5)
 ##############################
 ################################PLOT income NDVI gap
 Final = na.omit(Final)
@@ -168,14 +170,14 @@ ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Income)) +
         axis.text = element_text(size=24,face="plain",color="black"),
         panel.background=element_rect(colour="black",fill=NA),
         panel.grid.minor=element_blank(),
-        text=element_text(size=24,  family="Times"),
+        text=element_text(size=24),
         legend.position="right",
-        legend.text = element_text(size=24, 
-                                   face="plain"),
+        legend.text = element_text(size=24
+                                  ),
         legend.background=element_rect(colour=NA,fill=NA),
         axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
   ylim(0,0.6)
-ggsave("NDVI_Income.jpg",plot = ND,dpi=600,width = 8,height = 5)
+ggsave("NDVI_Income.pdf",plot = ND,dpi=600,width = 8,height = 5)
 ##############################
 ################################PLOT income NDVI gap
 Final = na.omit(Final)
@@ -251,14 +253,14 @@ ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Education)) +
         axis.text = element_text(size=24,face="plain",color="black"),
         panel.background=element_rect(colour="black",fill=NA),
         panel.grid.minor=element_blank(),
-        text=element_text(size=24,  family="Times"),
+        text=element_text(size=24),
         legend.position="right",
-        legend.text = element_text(size=24, 
-                                   face="plain"),
+        legend.text = element_text(size=24
+                                ),
         legend.background=element_rect(colour=NA,fill=NA),
         axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
   ylim(0,0.6)
-ggsave("NDVI_Education.jpg",plot = ND,dpi=600,width = 8,height = 5)
+ggsave("NDVI_Education.pdf",plot = ND,dpi=600,width = 8,height = 5)
 ##############################
 Final = na.omit(Final)
 Inc = quantile(Final$Median_age, prob=c(0, 0.25, 0.5, 0.75))
@@ -324,7 +326,8 @@ cli = transform(cli,race = c("Old","Young"))
 cli = transform(cli,Climate = c("ALL","ALL","Equatorial","Equatorial","Temperate","Temperate",
                                 "Sonw","Sonw" ,"Arid","Arid"))
 colnames(cli) = c("NDVI","SE","Median_age","Climate")
-ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Median_age)) + 
+
+ ND= ggplot(cli, aes(x=Climate, y=NDVI, fill=Median_age)) + 
   geom_bar(stat="identity", position=position_dodge()) +
   geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), width=.2,
                 position=position_dodge(.9))+ 
@@ -333,12 +336,12 @@ ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Median_age)) +
         axis.text = element_text(size=24,face="plain",color="black"),
         panel.background=element_rect(colour="black",fill=NA),
         panel.grid.minor=element_blank(),
-        text=element_text(size=24,  family="Times"),
+        text=element_text(size=24),
         legend.position="right",
-        legend.text = element_text(size=24, 
-                                   face="plain"),
+        legend.text = element_text(size=24),
         legend.background=element_rect(colour=NA,fill=NA),
         axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
-  ylim(0,0.6)
-ggsave("NDVI_Median_age.jpg",plot = ND,dpi=600,width = 8,height = 5)
+  ylim(0,0.6)+labs(color = "Median age\n")
+ ggsave("NDVI_Median_age.pdf",plot = ND,dpi=600,width = 8,height = 5)
 ##############################
+
