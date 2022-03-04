@@ -1,0 +1,350 @@
+library(caret)
+library(leaps)
+library(MASS)
+library(bootStepAIC)
+library(reshape2)
+library(tidyverse)
+library(bootstrap)
+library(QuantPsyc)  #姝ゅ寘涔熷彲浠ヨ緭鍑烘爣鍑嗗寲鐨勫洖褰掔郴鏁? lm.beta(lm_chap)
+library(relaimpo)
+library(psych)
+library(ggplot2)
+library(ggalt)
+library(data.table)
+
+#remove spatial autocorrelation
+library(nlme)
+library(ape)
+library(MuMIn)
+library(ggstatsplot)
+library(rsample)
+library(randomForest)# data splitting 
+library(h2o) 
+library(extrafont)
+
+setwd("D:\\硕士论文\\Radom_forest")
+dt1<-read.table("Data.csv",header=T, na.strings = "NA",sep=",")
+dt = na.omit(dt1)
+y = dt[,4]
+x = dt[,9:19]
+#####RF
+set.seed(123)
+tuneRF(x = x, y = y,mtryStart=3, ntreeTry=500, stepFactor=1, improve=1e-5,
+trace=TRUE, plot=TRUE, doBest=FALSE)
+
+RF1 <- randomForest(
+  r_dr~income+house_value+gross_rent+owned+season+rent+vaccant+spring+summer+fall+winter, 
+  data = dt,ntry = 3,importance = TRUE,ntree=500)
+importance1 = RF1$importance
+imp = varImpPlot(RF1)
+##############plot
+write.table(imp,"importance.csv",row.names=T,sep=",")
+impor <-read.table("importance.csv",header=T, na.strings = "NA", sep=",")
+
+importance = ggplot(impor, aes(x=reorder(Variables, Importance), y=Importance, label = round(Importance, 1))) + 
+  geom_lollipop(point.size = 5, point.colour = "cadetblue") +
+  geom_text(nudge_y = 2,size = 5) +
+  coord_flip() +
+  theme_minimal() +
+  labs(y="Percent", x=NULL)+
+  theme(axis.title=element_blank(),
+        axis.text =element_text(),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=16,colour="black"),
+        legend.position="right",
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ theme(legend.position="none")
+ggsave(importance, file = paste0("D:\\硕士论文\\Radom_forest", "Importance.pdf"), width =6, height =4, dpi = 1000)
+############################3
+library("iml")
+library(DALEX)
+library(lattice)
+library(egg) #ggarrange
+library(ggplot2)
+library(cowplot) #plot_grid()
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "house_value")
+ale.dat <- ale$results[,2:3]
+###########housevalue
+
+colnames(ale.dat) = c("ALE","House_value")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=House_value, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+  theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+  theme(
+    panel.grid.minor.x=element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+    panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+    legend.title=element_blank(),
+    axis.text=element_text(size=7),
+    axis.title=element_text(size=8),
+    axis.ticks=element_line(colour = "grey50",size=0.25),
+    legend.text=element_text(size=8),
+    panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("house_value")+ylab("ALE")
+  
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "housevalue.pdf"), width =3, height =2, dpi = 1000)
+########owned
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "owned")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","owned")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=owned, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("owned")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "owned.pdf"), width =3, height =2, dpi = 1000)
+########summer
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "summer")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","summer")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=summer, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("summer")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "summer.pdf"), width =3, height =2, dpi = 1000)
+########winter
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "winter")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","winter")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=winter, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("DJF")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "winter.pdf"), width =3, height =2, dpi = 1000)
+########winter
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "rent")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","rent")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=rent, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("rent")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "rent.pdf"), width =3, height =2, dpi = 1000)
+#############3fall
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "fall")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","fall")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=fall, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("SON")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "fall.pdf"), width =3, height =2, dpi = 1000)
+#############3gross_rent
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "gross_rent")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","gross_rent")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=gross_rent, y=ALE))+theme_bw() +
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("gross_rent")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "gross_rent.pdf"), width =3, height =2, dpi = 1000)
+#############3spring
+#############3income
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "income")
+ale.dat <- ale$results[,2:3]
+ale.dat <- ale.dat[1:17,]
+colnames(ale.dat) = c("ALE","income")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=income, y=ALE))+theme_bw()+
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("income")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "income.pdf"), width =3, height =2, dpi = 1000)
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "spring")
+ale.dat <- ale$results[,2:3]
+colnames(ale.dat) = c("ALE","spring")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=spring, y=ALE))+theme_bw()+
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("MAM")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "spring.pdf"), width =3, height =2, dpi = 1000)
+#########33season
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "season")
+ale.dat <- ale$results[,2:3]
+write.table(ale.dat,"season.csv",row.names=T,sep=",")
+ale.dat <-read.table("season.csv",header=T, na.strings = "NA", sep=",")
+
+
+colnames(ale.dat) = c("ALE","season")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=season, y=ALE))+theme_bw()+
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("season")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "season.pdf"), width =3, height =2, dpi = 1000)
+##############33
+predictor <- Predictor$new(RF1, data = x, y = y)
+ale <- FeatureEffect$new(predictor, method = "ale",feature = "vaccant")
+ale.dat <- ale$results[,2:3]
+ale.dat <- ale.dat[1:13,]
+colnames(ale.dat) = c("ALE","vaccant")
+ale_rf_DS_plot_i<-ggplot(ale.dat, aes(x=vaccant, y=ALE))+theme_bw()+
+  geom_smooth(aes(y=ALE),color="lightblue4",method="loess",se=TRUE,size=0.25)
+theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank())
+theme(
+  panel.grid.minor.x=element_blank(),
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+  legend.title=element_blank(),
+  axis.text=element_text(size=7),
+  axis.title=element_text(size=8),
+  axis.ticks=element_line(colour = "grey50",size=0.25),
+  legend.text=element_text(size=8),
+  panel.border=element_rect(colour = "grey50",size=0.25))+
+  xlab("vacant")+ylab("ALE")
+
+ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", "vaccant.pdf"), width =3, height =2, dpi = 1000)
+
+##################another packages
+set.seed(100)
+library(DALEX)
+library(lattice)
+library(egg) #ggarrange
+library(ggplot2)
+library(cowplot) #plot_grid()
+
+##dry season
+explainer_rf_DS <- DALEX::explain(RF1, label = "fire probability",
+                                  data = x, y = y,
+                                  method = "ale")
+#坐标轴两位小数、一位小数
+scaleFUN1 <- function(x) sprintf("%.1f", x)
+scaleFUN2 <- function(x) sprintf("%.2f", x)
+
+for (i in 1:11){
+  ale_rf_DS_i  <- variable_effect(explainer_rf_DS, variable = colnames(explainer_rf_DS$data)[i], type = "accumulated_dependency")
+  ale_rf_DS_plot_i<-ggplot(ale_rf_DS_i[6:96,], aes(x=ale_rf_DS_i[6:96,3], y=ale_rf_DS_i[6:96,4]))+geom_point(aes(x=ale_rf_DS_i[6:96,3], y=ale_rf_DS_i[6:96,4]),size=0.25)+theme_bw() + theme(legend.position = "none",axis.title=element_blank())+ labs(title=element_blank(),
+                                                                                                                                                                                                                                                        x =paste0(colnames(explainer_rf_DS$data)[i],"(s.d.)"), y = "ALE")+
+    theme(
+      panel.grid.minor.x=element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+      panel.grid.major.y=element_line(colour = "lightgrey",size=0.15,linetype="dotted"),
+      legend.title=element_blank(),
+      axis.text=element_text(size=7),
+      axis.title=element_text(size=8),
+      axis.ticks=element_line(colour = "grey50",size=0.25),
+      legend.text=element_text(size=8),
+      panel.border=element_rect(colour = "grey50",size=0.25))+geom_smooth(aes(y=ale_rf_DS_i[6:96,4]),color="lightblue4",method="loess",se=TRUE,size=0.25)+ scale_x_continuous(labels = scaleFUN1)+ scale_y_continuous(labels = scaleFUN2)
+  ggsave(ale_rf_DS_plot_i, file = paste0("D:\\硕士论文\\Radom_forest", colnames(explainer_rf_DS$data)[i],".pdf"), width =3, height =2, dpi = 1000)
+}
+
