@@ -1,0 +1,543 @@
+library(reshape2)
+library(tidyverse)
+library(bootstrap)
+library(QuantPsyc)  #姝ゅ寘涔熷彲浠ヨ緭鍑烘爣鍑嗗寲鐨勫洖褰掔郴鏁? lm.beta(lm_chap)
+library(relaimpo)
+library(psych)
+library(ggplot2)
+#remove spatial autocorrelation
+library(nlme)
+library(ape)
+library(MuMIn)
+library(ggstatsplot)
+library(rsq)
+library(extrafont)
+library(car)
+library(bfast)
+library(remotes)
+library(zoo)
+library(tidyverse)
+library(mblm)
+library(reshape2)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+windowsFonts(Arial = windowsFont("Arial"))
+stderr <- function(x, na.rm=FALSE) {
+  if (na.rm) x <- na.omit(x)
+  sqrt(var(x)/length(x))
+}
+library(extrafont)
+windowsFonts(Times=windowsFont("TT Arial"))
+setwd("D:\\D\\Figures\\CE\\Night_CE")
+data<-read.table("Night.csv",header=T, na.strings = "NA", sep=",")
+Data = na.omit(data)
+
+dt = na.omit(Data)
+list = dt$ORI
+list = unique(list)
+
+library(DescTools)
+library(entropy)
+library(ape)
+lm_b_social={}
+lm_p_social={}
+R2_adj_all={}
+lmg_social={}
+ID = {}
+
+for(b in list){
+  dt_sub = dt[dt[,5] == b,]
+  dt_sub = na.omit(dt_sub)
+  n = nrow(dt_sub)
+  
+  CE <-lm(formula= D_LST_Night~ND_NDVI,data=dt_sub)
+  regress_CE <-as.data.frame(summary(CE)[4])
+  print(regress_CE[4])
+  lm_b_social=rbind(lm_b_social, regress_CE[,1])
+  lm_p_social=rbind(lm_p_social, regress_CE[,4])
+  
+  R2_adj<-summary(CE)[[8]]#?
+  R2_adj_all=rbind(R2_adj_all, R2_adj)
+  ID=rbind(ID,b)
+}
+
+all = cbind(ID,lm_b_social,lm_p_social,R2_adj_all)
+all = na.omit(all)
+write.table(all,"CE_Drought_Night.csv",row.names=F,sep=",")
+############################3
+setwd("D:\\D\\Step_8_LST\\cooling_effect\\D_Cooling_effect")
+data1<-read.table("Maps.csv",header=T, na.strings = "NA", sep=",")
+data2<-read.table("CE_nonDrought_Night.csv",header=T, na.strings = "NA", sep=",")
+data3<-read.table("CE_Drought_Night.csv",header=T, na.strings = "NA", sep=",")
+
+data = merge(data1,data2)
+data = merge(data,data3)
+data = na.omit(data)
+write.table(data,"data_CE_drought_nondrought.csv",row.names=T,sep=",")
+
+########################################33
+setwd("D:\\D\\Figures\\LST_JJA_NDVI")
+data<-read.table("2014_2018.csv",header=T, na.strings = "NA", sep=",")
+climate1<-read.table("climate_change.csv",header=T, na.strings = "NA", sep=",")
+climate2<-read.table("climate_NDVI_Z.csv",header=T, na.strings = "NA", sep=",")
+ORI<-read.table("ORI_census_tract.csv",header=T, na.strings = "NA", sep=",")
+median_age<-read.table("median_age.txt",header=T, na.strings = "NA", sep="\t")
+LST<-read.table("LST.csv",header=T, na.strings = "NA", sep=",")
+LST_P90 = read.table("LST_P90_JJA.csv",header=T, na.strings = "NA", sep=",")
+delta = read.table("Delta.csv",header=T, na.strings = "NA", sep=",")
+Night_LST = read.table("Night_LST.csv",header=T, na.strings = "NA", sep=",")
+
+Data = merge(data,ORI)
+Data = merge(Data,climate1)
+Data = merge(Data,climate2)
+Data = merge(Data,median_age)
+Data = merge(Data,LST)
+Data = merge(Data,LST_P90)
+Data = merge(Data,delta)
+Data = merge(Data,Night_LST)
+
+Data = na.omit(Data)
+Data$NDVI_Z_Change = Data$NDVI_Z_D - Data$NDVI_Z_ND
+
+ApplyQuintiles2 <- function(x) {
+  cut(x, breaks=c(quantile(Data$NDVI_Z_Change, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$NDVI_Z_quantile <- sapply(Data$NDVI_Z_Change, ApplyQuintiles2)
+
+LST = cbind(Data$NDVI_Z_quantile,Data$Night_JJA_ND,Data$Night_JJA_D)
+LST = as.data.frame(LST)
+colnames(LST)=c("Quantile","JJA_ND_LST_P90","JJA_D_LST_P90")
+detach(package:plyr)
+stderr <- function(x) {
+  sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+}
+
+JJA_LST_NDVI_Z = LST %>%
+  group_by(Quantile) %>%
+  summarize(ND_JJA_LST_median = median(JJA_ND_LST_P90),
+            ND_JJA_LST_q75 = quantile(JJA_ND_LST_P90,probs = c(0.75)),
+            ND_JJA_LST_q25 = quantile(JJA_ND_LST_P90,probs = c(0.25)),
+            
+            D_JJA_LST_median = median(JJA_D_LST_P90),
+            D_JJA_LST_q75 = quantile(JJA_D_LST_P90,probs = c(0.75)),
+            D_JJA_LST_q25 = quantile(JJA_D_LST_P90,probs = c(0.25)),
+             )
+
+JJA_LST_NDVI_Z = LST %>%
+  group_by(Quantile) %>%
+  summarize(ND_JJA_LST_mean = mean(JJA_ND_LST_P90),
+            ND_JJA_LST_q75 = stderr(JJA_ND_LST_P90),
+            
+            D_JJA_LST_mean = mean(JJA_D_LST_P90),
+            D_JJA_LST_q75 = stderr(JJA_D_LST_P90),
+  )
+write.table(JJA_LST_NDVI_Z,"Night_JJA_LST_NDVI_Z_se.csv",row.names=T,sep=",")
+#############
+delta = na.omit(delta)
+delta = merge(delta,Night_LST)
+
+ApplyQuintiles <- function(x) {
+  cut(x, breaks=c(quantile(Data$Delta_NDVI, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+delta$Delta_NDVI_quantile <- sapply(delta$Delta_NDVI, ApplyQuintiles)
+LST = cbind(delta$Delta_NDVI_quantile,delta$Delta_Night_LST)
+LST = as.data.frame(LST)
+colnames(LST)=c("Delta_NDVI_quantile","Delta_LST")
+detach(package:plyr)
+
+delta_LST_NDVI = LST %>%
+  group_by(Delta_NDVI_quantile) %>%
+  summarize(Delta_LST_median = median(Delta_LST),
+            Delta_LST_q75 = quantile(Delta_LST,probs = c(0.75)),
+            Delta_LST_q25 = quantile(Delta_LST,probs = c(0.25)),
+            
+            Delta_LST_mean = mean(Delta_LST),
+            Delta_LST_se = stderr(Delta_LST))
+
+write.table(delta_LST_NDVI,"delta_LST_NDVI_Night.csv",row.names=T,sep=",")
+######################GGplot
+
+#+++++++++++++++++++++++++
+# Function to calculate the mean and the standard deviation
+# for each group
+#+++++++++++++++++++++++++
+# data : a data frame
+# varname : the name of a column containing the variable
+#to be summariezed
+# groupnames : vector of column names to be used as
+# grouping variables
+data_summary <- function(data, varname, groupnames){
+  require(plyr)
+  summary_func <- function(x, col){
+    c(mean = mean(x[[col]], na.rm=TRUE),
+      sd = sd(x[[col]], na.rm=TRUE))
+  }
+  data_sum<-ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  data_sum <- rename(data_sum, c("mean" = varname))
+  return(data_sum)
+}
+setwd("D:\\D\\Figures\\LST_JJA_NDVI\\Graph")
+Day_delta= read.table("Delta.csv",header=T, na.strings = "NA", sep=",")
+
+ggplot(Day_delta, aes(x=Quantile, y=median, group = Period, color=Period))+ 
+  geom_errorbar(aes(ymin=P25, ymax=P75), width=.2,size=1, 
+                position=position_dodge(0.3)) +
+  geom_line(aes(linetype=Period),position=position_dodge(0.3),size=1) + 
+  geom_point(aes(shape=Period),position=position_dodge(0.3),size=3)+
+  scale_color_manual(values=c('#FF6E00','#0772B2'))+
+  labs(x="\u0394NDVI", y = "\u0394LST (°C)")+scale_y_continuous(breaks = seq(0,3,1))+scale_x_continuous(breaks = seq(0,10,1))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="none",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+#
+p <- ggplot(Day_delta, aes(x=Delta_NDVI_quantile,y = Delta_LST_mean))+ 
+  geom_errorbar(aes(ymin = Delta_LST_mean-2*Delta_LST_se, ymax = Delta_LST_mean+2*Delta_LST_se), width=.15, 
+                position=position_dodge(0.05),color="#FF6E00",size = 0.5) +
+  geom_line(linetype="dotted",color="#FF6E00",size = 0.5) + 
+  geom_point(shape = 21,size=0.5,fill="#FF6E00",color="#FF6E00")+
+  geom_errorbar(data = Night_delta,aes(x=Delta_NDVI_quantile,y = Delta_LST_mean,
+      ymin=Delta_LST_mean-2*Delta_LST_se, ymax = Delta_LST_mean+2*Delta_LST_se ), width=.15, 
+                position=position_dodge(0.05),size = 0.5,color="#0772B2") +
+  geom_line(data = Night_delta,aes(x=Delta_NDVI_quantile,y = Delta_LST_mean),linetype="solid"
+            ,color="#0772B2",size = 0.5) + 
+  geom_point(data = Night_delta,aes(x=Delta_NDVI_quantile,y = Delta_LST_mean)
+             ,shape = 24,size=0.5,fill="#0772B2",color="#0772B2")+
+  labs(x="\u0394NDVI", y = "\u0394LST (°C)")+scale_y_continuous(breaks = seq(0,3,1))+scale_x_continuous(breaks = seq(0,10,1))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="right",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+
+##############################################
+setwd("D:\\D\\Figures\\LST_JJA_NDVI\\Graph")
+Day_delta= read.table("JJA_LST_NDVI_Z_boxplot.csv",header=T, na.strings = "NA", sep=",")
+
+ggplot(Day_delta, aes(x=Quantile, y=median, group = Period, color=Period))+ 
+  geom_errorbar(aes(ymin=P25, ymax=P75), width=.2,size=1, 
+                position=position_dodge(0.3)) +
+  geom_line(aes(linetype=Period),position=position_dodge(0.3),size=1) + 
+  geom_point(aes(shape=Period),position=position_dodge(0.3),size=3)+
+   scale_color_manual(values=c('#F68657','#75B19D'))+
+  labs(x="\u0394NDVI", y = "Mean LST (°C)")+scale_y_continuous(breaks = seq(30,42,2))+scale_x_continuous(breaks = seq(0,10,1))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="none",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+###############################################
+setwd("D:\\D\\Figures\\LST_JJA_NDVI\\Graph")
+Day_delta= read.table("JJA_LSTP90_NDVI_Z_boxplot.csv",header=T, na.strings = "NA", sep=",")
+
+ggplot(Day_delta, aes(x=Quantile, y=median, group = Period, color=Period))+ 
+  geom_errorbar(aes(ymin=P25, ymax=P75), width=.2,size=1, 
+                position=position_dodge(0.3)) +
+  geom_line(aes(linetype=Period),position=position_dodge(0.3),size=1) + 
+  geom_point(aes(shape=Period),position=position_dodge(0.3),size=3)+
+  scale_color_manual(values=c('#F68657','#75B19D'))+
+  labs(x="\u0394NDVI", y = " LST P90 (°C)")+scale_y_continuous(breaks = seq(34,46,2))+scale_x_continuous(breaks = seq(0,10,1))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="none",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+###############################################
+setwd("D:\\D\\Figures\\LST_JJA_NDVI\\Graph")
+Day_delta= read.table("P90_Night_JJA_LST_NDVI_Z_boxplot.csv",header=T, na.strings = "NA", sep=",")
+
+ggplot(Day_delta, aes(x=Quantile, y=median, group = Period, color=Period))+ 
+  geom_errorbar(aes(ymin=P25, ymax=P75), width=.2,size=1, 
+                position=position_dodge(0.3)) +
+  geom_line(aes(linetype=Period),position=position_dodge(0.3),size=1) + 
+  geom_point(aes(shape=Period),position=position_dodge(0.3),size=3)+
+  scale_color_manual(values=c('#F68657','#75B19D'))+
+  labs(x="\u0394NDVI", y = "Night LST P90 (°C)")+scale_y_continuous(breaks = seq(18,28,2))+scale_x_continuous(breaks = seq(0,10,1))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="none",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+##########################################33
+#####################################################3
+####################################################
+library(ggpmisc)
+setwd("D:\\D\\Figures\\CE")
+CE_Drought= read.table("CE_Drought.csv",header=T, na.strings = "NA", sep=",")
+CE_nonDrought= read.table("CE_nonDrought.csv",header=T, na.strings = "NA", sep=",")
+climate= read.table("climate.csv",header=T, na.strings = "NA", sep=",")
+colnames(climate) = c("ORI","climate","CZ")
+size= read.table("City_size.csv",header=T, na.strings = "NA", sep=",")
+data_CE = merge(CE_Drought,CE_nonDrought,by.x = "ORI")
+data_CE = merge(data_CE,climate)
+data_CE = merge(data_CE,size)
+data_CE$Slope = data_CE$Slope*(-0.1)
+data_CE$Slope_ND = data_CE$Slope_ND*(-0.1)
+
+data_CE$Dif_CE = data_CE$Slope -data_CE$Slope_ND
+CE = data_CE %>%
+  filter(P < 0.05 & P_ND < 0.05 & Slope > 0 & Slope_ND >0)
+
+
+
+ggplot(CE, aes(x=Slope, y=Slope_ND)) +
+  geom_point(aes(size=Area))+geom_abline(slope=1, intercept=0)+
+  geom_smooth(method = lm,se=T,size = 1.5,color = "red",linetype = "dashed")+ geom_rug()+
+  labs(x="CE Drought", y = "CE Non-drought")+
+  stat_poly_eq(formula = y~x, 
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+               parse = TRUE)+
+  scale_size_continuous(range = c(0.5, 5))+
+  theme(axis.title=element_text(size=20,face="bold",color="black"),
+        axis.text = element_text(size=18,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=18),
+        legend.position="bottom",
+        legend.text = element_text(size=18
+        ),legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))
+
+
+data_CE$Dif_CE = data_CE$Slope -data_CE$Slope_ND
+wilcox.test(data_CE$Slope,data_CE$Slope_ND)
+box_data = as.data.frame(cbind(CE$Slope,CE$Slope_ND))
+colnames(box_data) = c("D","ND")
+box_dt = reshape::melt(box_data)
+
+ggplot(data = box_dt,aes(x = variable,y=value,fill = variable))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+labs(x=" ", y = "CE (°C)")+scale_fill_manual(values=c('#F68657','#75B19D'))+
+ theme(axis.text = element_text(face="plain",color="black", size=18),
+       axis.title=element_text(size=20,face="bold",color="black") ,
+       legend.position="none")
+###############################
+box_data_CZ = as.data.frame(cbind(CE$Dif_CE,CE$CZ))
+colnames(box_data_CZ) = c("Dif","CZ")
+box_data_CZ$Dif = as.numeric(box_data_CZ$Dif)
+box_CZ = box_data_CZ%>%
+  group_by(CZ) %>%
+  summarize(mean = mean(Dif),
+            se = stderr(Dif)
+  )
+
+ggplot(data = box_data_CZ,aes(x = CZ,y=Dif))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x=" ", y = "\u0394CE (°C)")+scale_fill_manual(values=c('#F68657','#75B19D'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")
+#########################33
+box_data_Area = as.data.frame(cbind(CE$Slope,CE$Slope_ND,CE$Area))
+colnames(box_data_Area) = c("D","ND","Area")
+ApplyQuintiles <- function(x) {
+  cut(x, breaks=c(100,580,2000,10000), 
+      labels=c("D1","D2","D3"), include.lowest=TRUE)
+}
+box_data_Area$Area <- sapply(box_data_Area$Area, ApplyQuintiles)
+box_data_Area$DIF = box_data_Area$D - box_data_Area$ND
+
+ggplot(data = box_data_Area,aes(x = Area,y=DIF))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x=" ", y = "\u0394CE (°C)")+scale_fill_manual(values=c('#F68657','#75B19D'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")
+########################
+box_data_Area = as.data.frame(cbind(CE$Slope,CE$Slope_ND,CE$Area))
+colnames(box_data_Area) = c("D","ND","Area")
+ApplyQuintiles <- function(x) {
+  cut(x, breaks=c(100,580,2000,10000), 
+      labels=c("D1","D2","D3"), include.lowest=TRUE)
+}
+box_data_Area$Area <- sapply(box_data_Area$Area, ApplyQuintiles)
+box_data_dt = reshape2::melt(box_data_Area)
+
+
+ggplot(data = box_data_dt,aes(x = Area,y= value,fill = variable))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x="City Size", y = "CE (°C)")+scale_fill_manual(values=c('#F68657','#75B19D'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")
+##########3
+box_data_Area = as.data.frame(cbind(CE[,2],CE[,5],CE[,9]))
+colnames(box_data_Area) = c("D","ND","CZ")
+box_data_dt = reshape2::melt(box_data_Area, id.vars = "CZ")
+box_data_dt$value = as.numeric(box_data_dt$value)
+
+ggplot(data = box_data_dt,aes(x = CZ,y= value,fill = variable))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x="Climate Zone", y = "CE (°C)")+scale_fill_manual(values=c('#F68657','#75B19D'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")
+#####################Multi-years
+library(reshape2)
+library(tidyverse)
+library(bootstrap)
+library(QuantPsyc)  #姝ゅ寘涔熷彲浠ヨ緭鍑烘爣鍑嗗寲鐨勫洖褰掔郴鏁? lm.beta(lm_chap)
+library(relaimpo)
+library(psych)
+library(ggplot2)
+#remove spatial autocorrelation
+library(nlme)
+library(ape)
+library(MuMIn)
+library(ggstatsplot)
+library(rsq)
+library(extrafont)
+library(car)
+library(bfast)
+library(remotes)
+library(zoo)
+library(tidyverse)
+library(mblm)
+library(reshape2)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+windowsFonts(Arial = windowsFont("Arial"))
+stderr <- function(x, na.rm=FALSE) {
+  if (na.rm) x <- na.omit(x)
+  sqrt(var(x)/length(x))
+}
+library(extrafont)
+windowsFonts(Times=windowsFont("TT Arial"))
+setwd("D:\\D\\Figures\\Multiyears_cooling_effect")
+data<-read.table("Data_points_multiyear_CE.csv",header=T, na.strings = "NA", sep=",")
+dt = na.omit(data)
+
+list = dt$ORI
+list = unique(list)
+
+library(DescTools)
+library(entropy)
+library(ape)
+lm_b_social={}
+lm_p_social={}
+R2_adj_all={}
+lmg_social={}
+ID = {}
+
+for(b in list){
+  dt_sub = dt[dt[,1] == b,]
+  dt_sub = na.omit(dt_sub)
+  n = nrow(dt_sub)
+  
+  CE <-lm(formula= LST~TCC,data=dt_sub)
+  regress_CE <-as.data.frame(summary(CE)[4])
+  print(regress_CE[4])
+  lm_b_social=rbind(lm_b_social, regress_CE[,1])
+  lm_p_social=rbind(lm_p_social, regress_CE[,4])
+  
+  R2_adj<-summary(CE)[[8]]#?
+  R2_adj_all=rbind(R2_adj_all, R2_adj)
+  ID=rbind(ID,b)
+}
+
+all = cbind(ID,lm_b_social,lm_p_social,R2_adj_all)
+all = na.omit(all)
+write.table(all,"Binary_CE_multiyears.csv",row.names=F,sep=",")
+#######################Delta_LST_NDVI
+setwd("D:\\D\\Figures\\LST_JJA_NDVI\\Delta")
+day<-read.table("Delta.csv",header=T, na.strings = "NA", sep=",")
+night<-read.table("Night_Delta.csv",header=T, na.strings = "NA", sep=",")
+ori<-read.table("ORI.csv",header=T, na.strings = "NA", sep=",")
+
+all = merge(day,night)
+all = merge(all,ori)
+dt = na.omit(all)
+list = dt$ORI
+list = unique(list)
+
+q25 = {}
+q75 = {}
+K={}
+ID={}
+DIF={}
+for(b in list){
+  dt_sub = dt[dt[,5] == b,]
+  dt_sub = na.omit(dt_sub)
+  n = nrow(dt_sub)
+  
+  below = quantile(dt_sub$Delta_NDVI, prob=c(0.75))
+  two = quantile(dt_sub$Delta_NDVI, prob=c(0.25))
+  below_poverty = mean(dt_sub[dt_sub$Delta_NDVI > below,]$Delta_Night_LST)
+  two_poverty = mean(dt_sub[dt_sub$Delta_NDVI < two,]$Delta_Night_LST)
+  p = wilcox.test(dt_sub[dt_sub$Delta_NDVI > below,]$Delta_Night_LST
+                  ,dt_sub[dt_sub$Delta_NDVI < two,]$Delta_Night_LST,alternative = "two.sided",exact=FALSE)$p.value
+  dif = below_poverty - two_poverty
+  
+  ID = rbind(ID,b)
+  q25 = rbind(q25,below_poverty)
+  q75 = rbind(q75,two_poverty)
+  K=rbind(K,p)
+  DIF = rbind(DIF,dif)
+}
+
+all = cbind(ID,q25,q75,DIF,K)
+all = na.omit(all)
+colnames(all) = c("ORI","q75","q25","DIF","P")
+write.table(all,"NDVI_z_lst_delta_night.csv",row.names=F,sep=",")
+#######################################
+all<-read.table("ndvi_lst_delta_night_day.csv",header=T, na.strings = "NA", sep=",")
+climate= read.table("climate.csv",header=T, na.strings = "NA", sep=",")
+colnames(climate) = c("ORI","climate","CZ")
+size= read.table("City_size.csv",header=T, na.strings = "NA", sep=",")
+all = merge(all,climate,by.x = "ORI")
+all = merge(all,size,by.x = "ORI")
+
+box_data_Area = as.data.frame(cbind(all[,3],all[,5]))
+colnames(box_data_Area) = c("Day","CZ")
+box_data_dt = reshape2::melt(box_data_Area, id.vars = "CZ")
+box_data_dt$value = as.numeric(box_data_dt$value)
+
+ggplot(data = box_data_dt,aes(x = CZ,y= value,fill = variable))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x="Climate Zone", y = "\u0394LST (°C)")+scale_fill_manual(values=c('#FF6E00'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")+ylim(-1,0.5)
+
+box_data_Area = as.data.frame(cbind(all[,2],all[,5]))
+colnames(box_data_Area) = c("Night","CZ")
+box_data_dt = reshape2::melt(box_data_Area, id.vars = "CZ")
+box_data_dt$value = as.numeric(box_data_dt$value)
+
+ggplot(data = box_data_dt,aes(x = CZ,y= value,fill = variable))+
+  geom_boxplot(size = 0.5) + theme_classic()+
+  labs(x="Climate Zone", y = "\u0394LST (°C)")+scale_fill_manual(values=c('#056FB1'))+
+  theme(axis.text = element_text(face="plain",color="black", size=18),
+        axis.title=element_text(size=20,face="bold",color="black") ,
+        legend.position="none")+ylim(-0.2,0.5)
+
+
+
+
+
