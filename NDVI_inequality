@@ -1,0 +1,758 @@
+library(reshape2)
+library(tidyverse)
+library(bootstrap)
+library(QuantPsyc)  #姝ゅ寘涔熷彲浠ヨ緭鍑烘爣鍑嗗寲鐨勫洖褰掔郴鏁? lm.beta(lm_chap)
+library(relaimpo)
+library(psych)
+library(ggplot2)
+#remove spatial autocorrelation
+library(nlme)
+library(ape)
+library(MuMIn)
+library(ggstatsplot)
+library(rsq)
+library(extrafont)
+library(car)
+library(bfast)
+library(remotes)
+library(zoo)
+library(tidyverse)
+library(mblm)
+library(reshape2)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(plyr)
+windowsFonts(Arial = windowsFont("Arial"))
+stderr <- function(x, na.rm=FALSE) {
+  if (na.rm) x <- na.omit(x)
+  sqrt(var(x)/length(x))
+}
+library(extrafont)
+windowsFonts(Times=windowsFont("TT Arial"))
+###################Data pre-processing
+setwd("D:\\D\\Step_4_climate change")
+data<-read.table("2014_2018.csv",header=T, na.strings = "NA", sep=",")
+climate1<-read.table("climate_change.csv",header=T, na.strings = "NA", sep=",")
+climate2<-read.table("climate_NDVI_Z.csv",header=T, na.strings = "NA", sep=",")
+ORI<-read.table("ORI_census_tract.csv",header=T, na.strings = "NA", sep=",")
+median_age<-read.table("median_age.txt",header=T, na.strings = "NA", sep="\t")
+Data = merge(data,ORI)
+Data = merge(Data,climate1)
+Data = merge(Data,climate2)
+Data = merge(Data,median_age)
+Data = na.omit(Data)
+Data$NDVI_Z_Change = Data$NDVI_Z_D - Data$NDVI_Z_ND
+#######################climate zones
+eq = Data[Data$Climate %in% c(1:3),]
+arid = Data[Data$Climate %in% c(4:7),]
+tem = Data[Data$Climate %in% c(8:16),]
+snow = Data[Data$Climate %in% c(17:30),]
+#####################75% as majority
+White_Q75 = quantile(Data$white, prob=c(0.75))
+POC_Q75 = quantile(Data$POC, prob=c(0.75))
+
+eq_White_Q75 = quantile(eq$white, prob=c(0.75))
+eq_POC_Q75 = quantile(eq$POC, prob=c(0.75))
+
+tem_White_Q75 = quantile(tem$white, prob=c(0.75))
+tem_POC_Q75 = quantile(tem$POC, prob=c(0.75))
+
+arid_White_Q75 = quantile(arid$white, prob=c(0.75))
+arid_POC_Q75 = quantile(arid$POC, prob=c(0.75))
+
+snow_White_Q75 = quantile(snow$white, prob=c(0.75))
+snow_POC_Q75 = quantile(snow$POC, prob=c(0.75))
+####################333
+p_all = wilcox.test(Data[Data$white > White_Q75,]$NDVI_Z_Change,
+                    Data[Data$POC > POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_eq =  wilcox.test(eq[eq$white > eq_White_Q75,]$NDVI_Z_Change,
+                   eq[eq$POC > eq_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_tem =  wilcox.test(tem[tem$white > tem_White_Q75,]$NDVI_Z_Change,
+                    tem[tem$POC > tem_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_arid =  wilcox.test(arid[arid$white > arid_White_Q75,]$NDVI_Z_Change,
+                     arid[arid$POC > arid_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_snow = wilcox.test(snow[snow$white > snow_White_Q75,]$NDVI_Z_Change,
+                     snow[snow$POC > snow_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+#############ALL
+W_M = median(Data[Data$white > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(Data[Data$white > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(Data[Data$POC > POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(Data[Data$POC > POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+all = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+#############Temperate
+W_M = median(tem[tem$white > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(tem[tem$white > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(tem[tem$POC > tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(tem[tem$POC > tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+tem = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+############Arid
+W_M = median(arid[arid$white > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(arid[arid$white > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(arid[arid$POC > arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(arid[arid$POC > arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+arid = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+###########Snow
+W_M = median(snow[snow$white > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(snow[snow$white > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(snow[snow$POC > snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(snow[snow$POC > snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+snow = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+##########eq
+W_M = median(eq[eq$white > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(eq[eq$white > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(eq[eq$POC > eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(eq[eq$POC > eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+eq = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+################################### ggplot2 to plot
+##############################
+cli = rbind(all,eq,tem,snow,arid)
+
+cli = transform(cli,race = c("POC","White"))
+cli = transform(cli,Climate = c("ALL","ALL","Equatorial","Equatorial","Temperate","Temperate",
+                                "Sonw","Sonw" ,"Arid","Arid"))
+colnames(cli) = c("NDVI","SE","Race","Climate")
+
+ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Race)) + 
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), width=.2,
+                position=position_dodge(.9))+ 
+  scale_fill_manual(values=c("#3689AE",'#D45C41'))+
+  theme(axis.title=element_blank(),
+        axis.text = element_text(size=24,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=24),
+        legend.position="right",
+        legend.text = element_text(size=24
+        ),
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
+  ylim(-0.2,0.1)
+ggsave("NDVI_Z_change_Race_2.pdf",plot = ND,dpi=600,width = 8,height = 5)
+
+
+###############
+#####################75% as majority
+eq = Data[Data$Climate %in% c(1:3),]
+arid = Data[Data$Climate %in% c(4:7),]
+tem = Data[Data$Climate %in% c(8:16),]
+snow = Data[Data$Climate %in% c(17:30),]
+White_Q75 = quantile(Data$poverty, prob=c(0.75))
+POC_Q75 = quantile(Data$poverty2, prob=c(0.75))
+
+eq_White_Q75 = quantile(eq$poverty, prob=c(0.75))
+eq_POC_Q75 = quantile(eq$poverty2, prob=c(0.75))
+
+tem_White_Q75 = quantile(tem$poverty, prob=c(0.75))
+tem_POC_Q75 = quantile(tem$poverty2, prob=c(0.75))
+
+arid_White_Q75 = quantile(arid$poverty, prob=c(0.75))
+arid_POC_Q75 = quantile(arid$poverty2, prob=c(0.75))
+
+snow_White_Q75 = quantile(snow$poverty, prob=c(0.75))
+snow_POC_Q75 = quantile(snow$poverty2, prob=c(0.75))
+####################333
+p_all = wilcox.test(Data[Data$poverty > White_Q75,]$NDVI_Z_Change,
+                    Data[Data$poverty2 > POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_eq =  wilcox.test(eq[eq$poverty > eq_White_Q75,]$NDVI_Z_Change,
+                   eq[eq$poverty2 > eq_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_tem = wilcox.test(tem[tem$poverty > tem_White_Q75,]$NDVI_Z_Change,
+                    tem[tem$poverty2 > tem_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_arid = wilcox.test(arid[arid$poverty > arid_White_Q75,]$NDVI_Z_Change,
+                     arid[arid$poverty2 > arid_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_snow = wilcox.test(snow[snow$poverty > snow_White_Q75,]$NDVI_Z_Change,
+                     snow[snow$poverty2 > snow_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+#############ALL
+W_M = median(Data[Data$poverty > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(Data[Data$poverty > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(Data[Data$poverty2 > POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(Data[Data$poverty2 > POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+all = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+#############Temperate
+W_M = median(tem[tem$poverty > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(tem[tem$poverty > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(tem[tem$poverty2 > tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(tem[tem$poverty2 > tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+tem = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+############Arid
+W_M = median(arid[arid$poverty > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(arid[arid$poverty > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(arid[arid$poverty2 > arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(arid[arid$poverty2 > arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+arid = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+###########Snow
+W_M = median(snow[snow$poverty > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(snow[snow$poverty > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(snow[snow$poverty2 > snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(snow[snow$poverty2> snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+snow = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+##########eq
+W_M = median(eq[eq$poverty > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(eq[eq$poverty > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(eq[eq$poverty2 > eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(eq[eq$poverty2 > eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+eq = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+################################### ggplot2 to plot
+cli = rbind(all,eq,tem,snow,arid)
+
+cli = transform(cli,race = c("Above 2×poverty","Below poverty"))
+cli = transform(cli,Climate = c("ALL","ALL","Equatorial","Equatorial","Temperate","Temperate",
+                                "Sonw","Sonw" ,"Arid","Arid"))
+colnames(cli) = c("NDVI","SE","Poverty","Climate")
+
+ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Poverty)) + 
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), width=.2,
+                position=position_dodge(.9))+ 
+  scale_fill_manual(values=c("#3689AE",'#D45C41'))+
+  theme(axis.title=element_blank(),
+        axis.text = element_text(size=24,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=24),
+        legend.position="right",
+        legend.text = element_text(size=24
+        ),
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
+  ylim(-0.2,0.1)
+ggsave("NDVI_Z_change_poverty_2.pdf",plot = ND,dpi=600,width = 8,height = 5)
+
+
+###############
+#####################75% as majority
+eq = Data[Data$Climate %in% c(1:3),]
+arid = Data[Data$Climate %in% c(4:7),]
+tem = Data[Data$Climate %in% c(8:16),]
+snow = Data[Data$Climate %in% c(17:30),]
+White_Q75 = quantile(Data$education, prob=c(0.75))
+POC_Q75 = quantile(Data$education, prob=c(0.25))
+
+eq_White_Q75 = quantile(eq$education, prob=c(0.75))
+eq_POC_Q75 = quantile(eq$education, prob=c(0.25))
+
+tem_White_Q75 = quantile(tem$education, prob=c(0.75))
+tem_POC_Q75 = quantile(tem$education, prob=c(0.25))
+
+arid_White_Q75 = quantile(arid$education, prob=c(0.75))
+arid_POC_Q75 = quantile(arid$education, prob=c(0.25))
+
+snow_White_Q75 = quantile(snow$education, prob=c(0.75))
+snow_POC_Q75 = quantile(snow$education, prob=c(0.25))
+####################333
+p_all = wilcox.test(Data[Data$education > White_Q75,]$NDVI_Z_Change,
+                    Data[Data$education > POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_eq =  wilcox.test(eq[eq$education > eq_White_Q75,]$NDVI_Z_Change,
+                   eq[eq$education > eq_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_tem =  wilcox.test(tem[tem$education > tem_White_Q75,]$NDVI_Z_Change,
+                    tem[tem$education > tem_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_arid = wilcox.test(arid[arid$education > arid_White_Q75,]$NDVI_Z_Change,
+                arid[arid$education > arid_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_snow = wilcox.test(snow[snow$education > snow_White_Q75,]$NDVI_Z_Change,
+                     snow[snow$education > snow_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided",exact=FALSE)$p.value
+#############ALL
+#############ALL
+W_M = median(Data[Data$education > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(Data[Data$education > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(Data[Data$education < POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(Data[Data$education < POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+all = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+#############Temperate
+W_M = median(tem[tem$education > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(tem[tem$education > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(tem[tem$education < tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(tem[tem$education < tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+tem = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+############Arid
+W_M = median(arid[arid$education > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(arid[arid$education > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(arid[arid$education < arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(arid[arid$education < arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+arid = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+###########Snow
+W_M = median(snow[snow$education > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(snow[snow$education > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(snow[snow$education < snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(snow[snow$education < snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+snow = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+##########eq
+W_M = median(eq[eq$education > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(eq[eq$education > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(eq[eq$education < eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(eq[eq$education < eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+eq = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+################################### ggplot2 to plot
+cli = rbind(all,eq,tem,snow,arid)
+
+cli = transform(cli,race = c("Low","High"))
+cli = transform(cli,Climate = c("ALL","ALL","Equatorial","Equatorial","Temperate","Temperate",
+                                "Sonw","Sonw" ,"Arid","Arid"))
+colnames(cli) = c("NDVI","SE","Education","Climate")
+
+ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Education)) + 
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), width=.2,
+                position=position_dodge(.9))+ 
+  scale_fill_manual(values=c("#3689AE",'#D45C41'))+
+  theme(axis.title=element_blank(),
+        axis.text = element_text(size=24,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=24),
+        legend.position="right",
+        legend.text = element_text(size=24
+        ),
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
+  ylim(-0.2,0.1)
+ggsave("NDVI_Z_change_Education_2.pdf",plot = ND,dpi=600,width = 8,height = 5)
+
+
+
+
+
+###############
+#####################75% as majority
+eq = Data[Data$Climate %in% c(1:3),]
+arid = Data[Data$Climate %in% c(4:7),]
+tem = Data[Data$Climate %in% c(8:16),]
+snow = Data[Data$Climate %in% c(17:30),]
+White_Q75 = quantile(Data$Median_age, prob=c(0.75))
+POC_Q75 = quantile(Data$Median_age, prob=c(0.25))
+
+eq_White_Q75 = quantile(eq$Median_age, prob=c(0.75))
+eq_POC_Q75 = quantile(eq$Median_age, prob=c(0.25))
+
+tem_White_Q75 = quantile(tem$Median_age, prob=c(0.75))
+tem_POC_Q75 = quantile(tem$Median_age, prob=c(0.25))
+
+arid_White_Q75 = quantile(arid$Median_age, prob=c(0.75))
+arid_POC_Q75 = quantile(arid$Median_age, prob=c(0.25))
+
+snow_White_Q75 = quantile(snow$Median_age, prob=c(0.75))
+snow_POC_Q75 = quantile(snow$Median_age, prob=c(0.25))
+####################333
+p_all = wilcox.test(Data[Data$Median_age> White_Q75,]$NDVI_Z_Change,
+                    Data[Data$Median_age > POC_Q75,]$NDVI_Z_Change)$p.value
+
+p_eq = wilcox.test(eq[eq$Median_age > eq_White_Q75,]$NDVI_Z_Change,
+                   eq[eq$Median_age > eq_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_tem = wilcox.test(tem[tem$Median_age > tem_White_Q75,]$NDVI_Z_Change,
+                    tem[tem$Median_age > tem_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_arid = wilcox.test(arid[arid$Median_age > arid_White_Q75,]$NDVI_Z_Change,
+                arid[arid$Median_age > arid_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+
+p_snow = wilcox.test(snow[snow$Median_age > snow_White_Q75,]$NDVI_Z_Change,
+                     snow[snow$Median_age > snow_POC_Q75,]$NDVI_Z_Change,alternative = "two.sided")$p.value
+#############ALL
+#############ALL
+W_M = median(Data[Data$Median_age > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(Data[Data$Median_age > White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(Data[Data$Median_age < POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(Data[Data$Median_age < POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+all = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+#############Temperate
+W_M = median(tem[tem$Median_age > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(tem[tem$Median_age > tem_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(tem[tem$Median_age < tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(tem[tem$Median_age < tem_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+tem = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+############Arid
+W_M = median(arid[arid$Median_age > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(arid[arid$Median_age > arid_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(arid[arid$Median_age < arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(arid[arid$Median_age < arid_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+arid = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+###########Snow
+W_M = median(snow[snow$Median_age > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(snow[snow$Median_age > snow_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(snow[snow$Median_age < snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(snow[snow$Median_age < snow_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+snow = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+##########eq
+W_M = median(eq[eq$Median_age > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+W_S = stderr(eq[eq$Median_age > eq_White_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_M = median(eq[eq$Median_age < eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+P_S = stderr(eq[eq$Median_age < eq_POC_Q75,]$NDVI_Z_Change,na.rm=TRUE)
+eq = cbind(rbind(P_M,W_M),rbind(P_S,W_S))
+################################### ggplot2 to plot
+cli = rbind(all,eq,tem,snow,arid)
+
+cli = transform(cli,race = c("Low","High"))
+cli = transform(cli,Climate = c("ALL","ALL","Equatorial","Equatorial","Temperate","Temperate",
+                                "Sonw","Sonw" ,"Arid","Arid"))
+colnames(cli) = c("NDVI","SE","Age","Climate")
+
+ND = ggplot(cli, aes(x=Climate, y=NDVI, fill=Age)) + 
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), width=.2,
+                position=position_dodge(.9))+ 
+  scale_fill_manual(values=c("#3689AE",'#D45C41'))+
+  theme(axis.title=element_blank(),
+        axis.text = element_text(size=24,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=24),
+        legend.position="right",
+        legend.text = element_text(size=24
+        ),
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ theme(legend.position="bottom")+
+  ylim(-0.2,0.1)
+ggsave("NDVI_Z_change_Age_2.pdf",plot = ND,dpi=600,width = 8,height = 5)
+###############
+################
+############3
+######################
+percentile = quantile(data$DEM, prob=c(0.2,0.4,0.6,0.8))
+
+#Q1 = data[data$DEM <= percentile[1],]$country_number
+#Q2 = data[data$DEM > percentile[1] & data$DEM <= percentile[2],]$country_number
+#Q3 = data[data$DEM > percentile[2] & data$DEM <= percentile[3],]$country_number
+#Q4 = data[data$DEM > percentile[3] ,]$country_number
+#all = merge(Q1,Q2,Q3,Q4)
+ApplyQuintiles1 <- function(x) {
+  cut(x, breaks=c(quantile(Data$white, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$W <- sapply(Data$white, ApplyQuintiles1)
+ApplyQuintiles2 <- function(x) {
+  cut(x, breaks=c(quantile(Data$POC, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$B <- sapply(Data$POC, ApplyQuintiles2)
+White = cbind(Data[,23],Data[,24])
+colnames(White) = c("NDVI_Z_Change","Group")
+White = transform(White, Race = "White")
+
+Black = cbind(Data[,23],Data[,25])
+colnames(Black) = c("NDVI_Z_Change","Group")
+Black = transform(Black, Race = "POC")
+
+all = rbind(White,Black)
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+
+stderr <- function(x) {
+  sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+}
+
+# Then create a wrapper to *stderr* to make it compatible with *stat_summary*
+
+# see values shown in ?stat_summary
+my.stderr <- function(x) {
+  meany <- mean(x)
+  ymin  <- mean(x) - stderr(x)
+  ymax  <- mean(x) + stderr(x)
+  # assemble the named output
+  out <- c(y = meany, ymin = ymin, ymax = ymax)
+  return(out)
+}
+
+
+pdf("white_POC_NDVI_Z_lm.pdf",  width=8, height=5)
+ggplot(all, aes(x=factor(Group), y=NDVI_Z_Change,fill=Race,group = Race))+
+  stat_summary(fun.data = "mean_cl_boot",
+               geom = "pointrange",
+               color = "grey",
+               shape = 21,
+               size = 1)+
+  geom_smooth(data = subset(all, Race== "White" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#77AF9C",size = 1.5,linetype="dashed") +
+geom_smooth(data = subset(all, Race== "POC" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#F68657",size = 1.5,linetype="dashed") +
+scale_fill_manual(values=c("#F68657","#77AF9C"))+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text =element_text(size=17, face="bold"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=20,face="bold"),
+        legend.position="right",
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ 
+  xlab("Group of Race")+ylab("NDVI-Zscores Change")+
+  theme(legend.position="none")
+dev.off()
+
+
+##################################
+
+ApplyQuintiles1 <- function(x) {
+  cut(x, breaks=c(quantile(Data$poverty2, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$W <- sapply(Data$poverty2, ApplyQuintiles1)
+
+ApplyQuintiles2 <- function(x) {
+  cut(x, breaks=c(quantile(Data$poverty, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$B <- sapply(Data$poverty, ApplyQuintiles2)
+White = cbind(Data[,23],Data[,24])
+colnames(White) = c("NDVI_Z_Change","Group")
+White = transform(White, Race = "White")
+
+Black = cbind(Data[,23],Data[,25])
+colnames(Black) = c("NDVI_Z_Change","Group")
+Black = transform(Black, Race = "POC")
+
+all = rbind(White,Black)
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+
+stderr <- function(x) {
+  sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+}
+
+# Then create a wrapper to *stderr* to make it compatible with *stat_summary*
+
+# see values shown in ?stat_summary
+my.stderr <- function(x) {
+  meany <- mean(x)
+  ymin  <- mean(x) - stderr(x)
+  ymax  <- mean(x) + stderr(x)
+  # assemble the named output
+  out <- c(y = meany, ymin = ymin, ymax = ymax)
+  return(out)
+}
+
+
+pdf("Poverty_NDVI_Z_lm.pdf",  width=8, height=5)
+ggplot(all, aes(x=factor(Group), y=NDVI_Z_Change,fill=Race,group = Race))+
+  stat_summary(fun.data = "mean_cl_boot",
+               geom = "pointrange",
+               color = "grey",
+               shape = 21,
+               size = 1)+
+  geom_smooth(data = subset(all, Race== "White" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#77AF9C",size = 1.5,linetype="dashed") +
+  geom_smooth(data = subset(all, Race== "POC" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#F68657",size = 1.5,linetype="dashed") +
+  scale_fill_manual(values=c("#F68657","#77AF9C"))+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text =element_text(size=17, face="bold"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=20,face="bold"),
+        legend.position="right",
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ 
+  xlab("Group of Poverty")+ylab("NDVI-Zscores Change")+
+  theme(legend.position="none")
+dev.off()
+############################
+##################################
+
+ApplyQuintiles1 <- function(x) {
+  cut(x, breaks=c(quantile(Data$education, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$W <- sapply(Data$education, ApplyQuintiles1)
+
+ApplyQuintiles2 <- function(x) {
+  cut(x, breaks=c(quantile(Data$Median_age, probs = seq(0, 1, by = 0.10))), 
+      labels=c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100"), include.lowest=TRUE)
+}
+Data$B <- sapply(Data$Median_age, ApplyQuintiles2)
+
+White = cbind(Data[,23],Data[,24])
+colnames(White) = c("NDVI_Z_Change","Group")
+White = transform(White, Race = "White")
+
+Black = cbind(Data[,23],Data[,25])
+colnames(Black) = c("NDVI_Z_Change","Group")
+Black = transform(Black, Race = "POC")
+
+all = rbind(White,Black)
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+
+stderr <- function(x) {
+  sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+}
+
+# Then create a wrapper to *stderr* to make it compatible with *stat_summary*
+
+# see values shown in ?stat_summary
+my.stderr <- function(x) {
+  meany <- mean(x)
+  ymin  <- mean(x) - stderr(x)
+  ymax  <- mean(x) + stderr(x)
+  # assemble the named output
+  out <- c(y = meany, ymin = ymin, ymax = ymax)
+  return(out)
+}
+
+
+pdf("Median_Education_NDVI_Z_lm.pdf",  width=8, height=5)
+ggplot(all, aes(x=factor(Group), y=NDVI_Z_Change,fill=Race,group = Race))+
+  stat_summary(fun.data = "mean_cl_boot",
+               geom = "pointrange",
+               color = "grey",
+               shape = 21,
+               size = 1)+
+  geom_smooth(data = subset(all, Race== "White" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#77AF9C",size = 1.5,linetype="dashed") +
+  geom_smooth(data = subset(all, Race== "POC" ),method='lm', aes(x=factor(Group), y=NDVI_Z_Change),color ="#F68657",size = 1.5,linetype="dashed") +
+  scale_fill_manual(values=c("#F68657","#77AF9C"))+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text =element_text(size=17, face="bold"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=20,face="bold"),
+        legend.position="right",
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+ 
+  xlab("Group by percentile")+ylab("NDVI-Zscores Change")+
+  theme(legend.position="none")
+dev.off()
+###############################3
+#################3Race people
+ApplyQuintiles1 <- function(x) {
+  cut(x, breaks=c(quantile(Data$white, probs = seq(0, 1, by = 0.20))), 
+      labels=c("0-20","20-40","40-60","60-80","80-100"), include.lowest=TRUE)
+}
+Data$W <- sapply(Data$white, ApplyQuintiles1)
+#
+ApplyQuintiles2 <- function(x) {
+  cut(x, breaks=c(quantile(Data$hispanic, probs = seq(0, 1, by = 0.20))), 
+      labels=c("0-20","20-40","40-60","60-80","80-100"), include.lowest=TRUE)
+}
+Data$H <- sapply(Data$hispanic, ApplyQuintiles2)
+#
+ApplyQuintiles3 <- function(x) {
+  cut(x, breaks=c(quantile(Data$black, probs = seq(0, 1, by = 0.20))), 
+      labels=c("0-20","20-40","40-60","60-80","80-100"), include.lowest=TRUE)
+}
+Data$B <- sapply(Data$black, ApplyQuintiles3)
+#
+ApplyQuintiles4 <- function(x) {
+  cut(x, breaks=c(quantile(Data$other, probs = seq(0, 1, by = 0.20))), 
+      labels=c("0-20","20-40","40-60","60-80","80-100"), include.lowest=TRUE)
+}
+Data$O <- sapply(Data$other, ApplyQuintiles4)
+
+
+White = cbind(Data[,23],Data[,24])
+colnames(White) = c("NDVI_Z_Change","Group")
+White = transform(White, Race = "White")
+
+Black = cbind(Data[,23],Data[,25])
+colnames(Black) = c("NDVI_Z_Change","Group")
+Black = transform(Black, Race = "Black")
+
+Other = cbind(Data[,23],Data[,26])
+colnames(Other) = c("NDVI_Z_Change","Group")
+Other = transform(Other, Race = "Other")
+
+Hispanic = cbind(Data[,23],Data[,27])
+colnames(Hispanic) = c("NDVI_Z_Change","Group")
+Hispanic = transform(Hispanic, Race = "Hispanic")
+all = rbind(White,Hispanic,Black,Other)
+detach(package:plyr)
+all_mean = all %>%
+group_by(Group,Race) %>%
+summarize(mean = mean(NDVI_Z_Change))
+
+all_se = all %>%
+  group_by(Group,Race) %>%
+  summarize(stderr = stderr(NDVI_Z_Change))
+
+all_mean_se = merge(all_mean,all_se)
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+
+stderr <- function(x) {
+  sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+}
+
+pdf("Race_all_bpwo2.pdf",  width=8, height=5)
+ggplot(all_mean_se, aes(x=as.factor(Group), y=mean, fill=Race)) + 
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_errorbar(aes(ymin=mean-2*stderr, ymax=mean+2*stderr), width=.2,
+                position=position_dodge(.9))+ 
+  scale_fill_manual(values=c("#ff8884",'#c82423','#9ac9db',"#2878b5"))+
+  theme(axis.title=element_blank(),
+        axis.text = element_text(size=24,face="plain",color="black"),
+        panel.background=element_rect(colour="black",fill=NA),
+        panel.grid.minor=element_blank(),
+        text=element_text(size=24),
+        legend.text = element_text(size=24
+        ),
+        legend.background=element_rect(colour=NA,fill=NA),
+        axis.ticks=element_line(colour="black"))+theme(legend.position="bottom") 
+dev.off()
+######################states statistics
+setwd("D:\\D\\Step_4_climate change\\Maps\\states")
+Race<-read.table("NDVI_Z_Race.csv",header=T, na.strings = "NA", sep=",")
+state<-read.table("states.csv",header=T, na.strings = "NA", sep=",")
+state_cite<-read.table("states_cite.csv",header=T, na.strings = "NA", sep=",")
+Poverty<-read.table("NDVI_Z_poverty.csv",header=T, na.strings = "NA", sep=",")
+Education<-read.table("NDVI_Z_Education.csv",header=T, na.strings = "NA", sep=",")
+age<-read.table("NDVI_Z_Median_age.csv",header=T, na.strings = "NA", sep=",")
+
+Race_state = merge(Race,state,by.x = "ORI")
+Poverty_state = merge(Poverty,state,by.x = "ORI")
+Education_state = merge(Education,state,by.x = "ORI")
+age_state = merge(age,state,by.x = "ORI")
+
+Race_state_mean = Race_state %>%
+  group_by(states) %>%
+  summarize(mean = mean(DIF)
+            ,stderr(DIF))
+
+Poverty_state_mean = Poverty_state %>%
+  group_by(states) %>%
+  summarize(mean = mean(DIF)
+            ,stderr(DIF))
+
+Education_state_mean = Education_state %>%
+  group_by(states) %>%
+  summarize(mean = mean(DIF)
+            ,stderr(DIF))
+
+age_state_mean = age_state %>%
+  group_by(states) %>%
+  summarize(mean = mean(DIF)
+            ,stderr(DIF))
+
+Race_state_mean = merge(Race_state_mean,state_cite)
+Poverty_state_mean = merge(Poverty_state_mean,state_cite)
+Education_state_mean = merge(Education_state_mean,state_cite)
+age_state_mean = merge(age_state_mean,state_cite)
+
+write.table(Race_state_mean,"Race_state_mean.csv",row.names=T,sep=",")
+write.table(Poverty_state_mean,"Poverty_state_mean.csv",row.names=T,sep=",")
+write.table(Education_state_mean,"Education_state_mean.csv",row.names=T,sep=",")
+write.table(age_state_mean,"age_state_mean.csv",row.names=T,sep=",")
