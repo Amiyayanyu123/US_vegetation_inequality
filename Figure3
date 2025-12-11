@@ -1,0 +1,50 @@
+## =========================
+## 0. Load packages & read data
+## =========================
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(reshape2)
+library(tidyverse)
+
+setwd("H:\\Drought_urbanvegetation_degradation\\Figures\\NDVI_Z_inequality\\correlation")
+
+data1 <- read.table("climate.csv",          header = TRUE, na.strings = "NA", sep = ",")
+data2 <- read.table("correlation_all_R.csv",header = TRUE, na.strings = "NA", sep = ",")
+
+## =========================
+## 1. Merge & reshape to long format
+## =========================
+all <- merge(data1, data2) %>%
+  select(-ORI, -Climate) %>%                 # remove unused columns
+  reshape2::melt(id.vars = "CZ")            # keep CZ, convert others to long format
+
+## Set factor order for variables
+all$variable <- factor(
+  all$variable,
+  levels = c(
+    "white", "POC", "black", "hispanic", "other",
+    "poverty", "poverty12", "poverty2",
+    "education", "Median_age"
+  )
+)
+
+## =========================
+## 2. Plot boxplots
+## =========================
+p_cor <- ggplot(all, aes(x = variable, y = value, fill = CZ)) +
+  geom_boxplot(outlier.size = 0.5, width = 0.6) +
+  labs(x = "", y = "Correlation") +
+  scale_fill_manual(values = c("#F8766D", "#FFA500", "#00BFC4", "#619CFF")) +
+  theme_classic() +
+  theme(
+    axis.text       = element_text(face = "plain", color = "black", size = 12),
+    axis.title      = element_text(size = 12, face = "bold", color = "black"),
+    axis.text.x     = element_text(angle = 20, hjust = 1),
+    legend.position = "none"
+  )
+
+## Save figure
+ggsave("correlation_CZ_boxplot.pdf",
+       plot  = p_cor,
+       width = 8, height = 4, dpi = 600)
