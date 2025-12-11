@@ -1,0 +1,136 @@
+# Load required packages
+library(tidyverse)
+library(ggpubr)
+
+# Set working directory
+setwd("C:\\Users\\颜宇\\Desktop\\NPJ_US\\Data_analysis\\Mech")
+
+# Load datasets
+data <- read.table("2014_2018.csv", header = TRUE, na.strings = "NA", sep = ",")
+ORI <- read.table("ORI_census_tract.csv", header = TRUE, na.strings = "NA", sep = ",")
+ACS_EVI_KNDVI <- read.table("ACS_Mech.csv", header = TRUE, na.strings = "NA", sep = ",")
+median_age <- read.table("median_age.csv", header = TRUE, na.strings = "NA", sep = ",")
+average_NDVI <- read.table("NDVI_average.csv", header = TRUE, na.strings = "NA", sep = ",")
+
+# Merge datasets step by step
+Data <- merge(data, ORI)
+Data <- merge(Data, ACS_EVI_KNDVI)
+Data <- merge(Data, median_age)
+Data <- merge(Data, median_age)  # Note: this is duplicated — check if this is intentional
+
+# Remove rows with missing values
+Data <- na.omit(Data)
+
+# ==========================
+# Correlation: ΔNDVI vs ΔAET
+# ==========================
+cor_results <- Data %>%
+  group_by(ORI) %>%
+  summarise(
+    cor_NDVI_AET_Z_diff = cor(diff_NDVI_Z, diff_AET_Z, use = "complete.obs"),
+    cor_NDVI_AET_JJA = cor(diff_NDVI_JJA, diff_AET_JJA, use = "complete.obs"),
+    
+    p_NDVI_AET_Z_diff = cor.test(diff_NDVI_Z, diff_AET_Z)$p.value,
+    p_NDVI_AET_JJA = cor.test(diff_NDVI_JJA, diff_AET_JJA)$p.value,
+    n = n()
+  )
+
+# Convert correlation and p-values to long format
+cor_results_long <- cor_results %>%
+  pivot_longer(cols = starts_with("cor_"), names_to = "Type", values_to = "Correlation")
+
+p_results_long <- cor_results %>%
+  pivot_longer(cols = starts_with("p_"), names_to = "Type", values_to = "p_value")
+
+# Correlation boxplot
+A <- ggplot(cor_results_long, aes(x = Type, y = Correlation)) +
+  geom_boxplot(outlier.shape = NA, width = 0.5, fill = "#5dade2") +
+  theme_bw(base_size = 14) +
+  labs(x = NULL, y = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# p-value boxplot with reference line
+B <- ggplot(p_results_long, aes(x = Type, y = p_value)) +
+  geom_boxplot(fill = "#F4D03F", width = 0.5) +
+  geom_hline(yintercept = 0.1, linetype = "dashed", color = "red", size = 0.7) +
+  theme_bw(base_size = 14) +
+  labs(x = NULL, y = "p-value") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# ==========================
+# Correlation: Demographics vs ΔAET_Z
+# ==========================
+cor_results <- Data %>%
+  group_by(ORI) %>%
+  summarise(
+    cor_age = cor(Median_age, diff_AET_Z, use = "complete.obs"),
+    cor_white = cor(white, diff_AET_Z, use = "complete.obs"),
+    cor_POC = cor(POC, diff_AET_Z, use = "complete.obs"),
+    cor_black = cor(black, diff_AET_Z, use = "complete.obs"),
+    cor_hispanic = cor(hispanic, diff_AET_Z, use = "complete.obs"),
+    cor_education = cor(education, diff_AET_Z, use = "complete.obs"),
+    cor_poverty = cor(poverty, diff_AET_Z, use = "complete.obs"),
+    cor_poverty12 = cor(poverty12, diff_AET_Z, use = "complete.obs"),
+    cor_poverty2 = cor(poverty2, diff_AET_Z, use = "complete.obs"),
+    
+    p_age = cor.test(Median_age, diff_AET_Z)$p.value,
+    p_white = cor.test(white, diff_AET_Z)$p.value,
+    p_POC = cor.test(POC, diff_AET_Z)$p.value,
+    p_black = cor.test(black, diff_AET_Z)$p.value,
+    p_hispanic = cor.test(hispanic, diff_AET_Z)$p.value,
+    p_education = cor.test(education, diff_AET_Z)$p.value,
+    p_poverty = cor.test(poverty, diff_AET_Z)$p.value,
+    p_poverty12 = cor.test(poverty12, diff_AET_Z)$p.value,
+    p_poverty2 = cor.test(poverty2, diff_AET_Z)$p.value,
+    n = n()
+  )
+
+# Reshape correlation and p-values
+cor_results_long <- pivot_longer(cor_results, starts_with("cor_"), names_to = "Type", values_to = "Correlation")
+p_results_long   <- pivot_longer(cor_results, starts_with("p_"), names_to = "Type", values_to = "p_value")
+
+# Order factor levels based on median correlation
+cor_order <- cor_results_long %>%
+  group_by(Type) %>%
+  summarise(med = median(Correlation, na.rm = TRUE)) %>%
+  arrange(desc(med)) %>%
+  pull(Type)
+
+p_order <- gsub("^cor_", "p_", cor_order)
+
+# Set factor levels for plotting
+cor_results_long$Type <- factor(cor_results_long$Type, levels = cor_order)
+p_results_long$Type   <- factor(p_results_long$Type, levels = p_order)
+
+# Plot correlation boxplot
+C <- ggplot(cor_results_long, aes(x = Type, y = Correlation)) +
+  geom_boxplot(outlier.shape = NA, width = 0.5, fill = "#5dade2") +
+  theme_bw(base_size = 14) +
+  labs(x = NULL, y = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot p-value boxplot
+D <- ggplot(p_results_long, aes(x = Type, y = p_value)) +
+  geom_boxplot(fill = "#F4D03F", width = 0.5) +
+  geom_hline(yintercept = 0.1, linetype = "dashed", color = "red", size = 0.7) +
+  theme_bw(base_size = 14) +
+  labs(x = NULL, y = "p-value") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# ==========================
+# Correlation: Demographics vs Annual AET
+# ==========================
+# (same structure as above, target variable is AET)
+
+# ==========================
+# Correlation: Demographics vs Drought AET_JJA
+# ==========================
+# (same structure as above, target variable is AET_D_JJA)
+
+# Combine all figures
+a <- ggarrange(A, B, ncol = 2)
+b <- ggarrange(C, D, ncol = 2)
+ggarrange(a, b, ncol = 2, widths = c(0.35, 0.65))  # Final figure with layout
+
+# Final drought-focused figure (E, f, g, h assumed defined)
+ggarrange(E, f, g, h, ncol = 2, nrow = 2)
