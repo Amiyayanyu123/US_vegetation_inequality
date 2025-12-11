@@ -1,0 +1,366 @@
+library(tidyverse)
+
+setwd("C:\\Users\\颜宇\\Desktop\\NPJ_US\\Data_analysis\\Test_Landsat_NDVI")
+data<-read.table("2014_2018.csv",header=T, na.strings = "NA", sep=",")
+ORI<-read.table("ORI_census_tract.csv",header=T, na.strings = "NA", sep=",")
+ACS_EVI_KNDVI = read.table("ACS_Landsat_NDVI.csv",header=T, na.strings = "NA", sep=",")
+median_age = read.table("median_age.csv",header=T, na.strings = "NA", sep=",")
+
+Data = merge(data,ORI)
+Data = merge(Data,ACS_EVI_KNDVI)
+Data = merge(Data,median_age)
+
+Data = na.omit(Data)
+
+Data$delta_KNDVI = Data$NDVI_Z_D - Data$NDVI_Z_ND
+
+stderr <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+
+# 按变量计算分位
+get_quartile <- function(x, p) quantile(x, probs = p, na.rm=TRUE)
+
+Data <- Data %>%
+  mutate(
+    ClimateZone = case_when(
+      Climate %in% 1:3   ~ "Equatorial",
+      Climate %in% 4:7   ~ "Arid",
+      Climate %in% 8:16  ~ "Temperate",
+      Climate %in% 17:30 ~ "Snow",
+      TRUE               ~ NA
+    )
+  ) %>% na.omit()
+
+
+group_race_contrast1 <- function(df, value_col, white_col, black_col, climate_col="ClimateZone") {
+  # 分别选white和black占比最高的25%区域
+  white_q75 <- quantile(df[[white_col]], 0.75, na.rm=TRUE)
+  black_q75 <- quantile(df[[black_col]], 0.75, na.rm=TRUE)
+  
+  group_white <- df %>% filter(.data[[white_col]] > white_q75)
+  group_black <- df %>% filter(.data[[black_col]] > black_q75)
+  
+  # 统计每个气候带下的均值、标准误
+  stats_white <- group_white %>%
+    group_by(Climate = .data[[climate_col]]) %>%
+    summarise(
+      NDVI = mean(.data[[value_col]], na.rm=TRUE),
+      Median = median(.data[[value_col]], na.rm=TRUE),
+      SE = stderr(.data[[value_col]]),
+      N = n(),
+      Group = "White"
+    )
+  stats_black <- group_black %>%
+    group_by(Climate = .data[[climate_col]]) %>%
+    summarise(
+      NDVI = mean(.data[[value_col]], na.rm=TRUE),
+      Median = median(.data[[value_col]], na.rm=TRUE),
+      SE = stderr(.data[[value_col]]),
+      N = n(),
+      Group = "Black"
+    )
+  
+  # 合并
+  stats_all <- bind_rows(stats_white, stats_black)
+  
+  # 显著性检验：分别在每个气候区做white/black的比较
+  # 可选Mann-Whitney U检验或t检验
+  p_values <- stats_white$Climate %>%
+    setNames(stats_white$Climate) %>%
+    lapply(function(zone) {
+      white_vals <- group_white %>% filter(.data[[climate_col]] == zone) %>% pull(.data[[value_col]])
+      black_vals <- group_black %>% filter(.data[[climate_col]] == zone) %>% pull(.data[[value_col]])
+      if(length(white_vals)>1 & length(black_vals)>1){
+        tryCatch({
+          wilcox.test(white_vals, black_vals)$p.value
+        }, error=function(e) NA)
+      } else {
+        NA
+      }
+    }) %>% unlist()
+  
+  # 增加p值到结果表
+  stats_all$P_value <- rep(p_values, each=2) # 注意顺序要和Climate一致
+  
+  stats_all
+}
+
+group_race_contrast2 <- function(df, value_col, edu_col, climate_col="ClimateZone") {
+  # 选受教育程度最高Q75和最低Q25
+  edu_q75 <- quantile(df[[edu_col]], 0.75, na.rm=TRUE)
+  edu_q25 <- quantile(df[[edu_col]], 0.25, na.rm=TRUE)
+  
+  group_high <- df %>% filter(.data[[edu_col]] > edu_q75)
+  group_low  <- df %>% filter(.data[[edu_col]] < edu_q25)
+  
+  # 统计每个气候带下均值、标准误
+  stats_high <- group_high %>%
+    group_by(Climate = .data[[climate_col]]) %>%
+    summarise(
+      NDVI = mean(.data[[value_col]], na.rm=TRUE),
+      Median = median(.data[[value_col]], na.rm=TRUE),
+      SE = stderr(.data[[value_col]]),
+      N = n(),
+      Group = "High"
+    )
+  stats_low <- group_low %>%
+    group_by(Climate = .data[[climate_col]]) %>%
+    summarise(
+      NDVI = mean(.data[[value_col]], na.rm=TRUE),
+      Median = median(.data[[value_col]], na.rm=TRUE),
+      SE = stderr(.data[[value_col]]),
+      N = n(),
+      Group = "Low"
+    )
+  
+  # 合并
+  stats_all <- bind_rows(stats_high, stats_low)
+  
+  # 显著性检验
+  p_values <- stats_high$Climate %>%
+    setNames(stats_high$Climate) %>%
+    lapply(function(zone) {
+      high_vals <- group_high %>% filter(.data[[climate_col]] == zone) %>% pull(.data[[value_col]])
+      low_vals  <- group_low %>% filter(.data[[climate_col]] == zone) %>% pull(.data[[value_col]])
+      if(length(high_vals)>1 & length(low_vals)>1){
+        tryCatch({
+          wilcox.test(high_vals, low_vals)$p.value
+        }, error=function(e) NA)
+      } else {
+        NA
+      }
+    }) %>% unlist()
+  
+  # 增加p值到结果表
+  stats_all$P_value <- rep(p_values, each=2)
+  
+  stats_all
+}
+
+result1 <- group_race_contrast1(Data, value_col="delta_KNDVI", white_col="white", black_col="POC", climate_col="ClimateZone")
+result2 <- group_race_contrast1(Data, value_col="delta_KNDVI", white_col="poverty2", black_col="poverty", climate_col="ClimateZone")
+result3 <- group_race_contrast2(Data, value_col="delta_KNDVI", edu_col="education", climate_col="ClimateZone")
+result4 <- group_race_contrast2(Data, value_col="delta_KNDVI", edu_col="Median_age", climate_col="ClimateZone")
+
+result1$Panel <- "Race"
+result1$Group <- recode(result1$Group, White = "White", Black = "POC")  # 你POC的分组要对齐
+result2$Panel <- "Poverty"
+result2$Group <- recode(result2$Group, White = "Above 2×poverty", Black = "Below poverty")
+result3$Panel <- "Education"
+result3$Group <- recode(result3$Group, High = "High", Low = "Low")
+result4$Panel <- "Age"
+result4$Group <- recode(result4$Group, High = "High", Low = "Low")
+
+all_results <- bind_rows(result1, result2, result3, result4)
+all_results$Panel <- factor(all_results$Panel, levels=c("Race", "Poverty", "Education", "Age"))
+all_results$Group <- factor(all_results$Group, 
+                            levels=c("White", "POC", "Above 2×poverty", "Below poverty", "High", "Low"))
+
+# 统一Climate顺序和名称
+all_results$Climate <- recode(all_results$Climate, 
+                              Sonw = "Snow", 
+                              Equatorial="Equatorial", 
+                              Temperate="Temperate",
+                              Arid="Arid")
+all_results$Climate <- factor(all_results$Climate, levels=c("Arid","Equatorial","Snow","Temperate"))
+
+all_results <- all_results %>%
+  group_by(Panel, Climate) %>%
+  mutate(
+    Sig = case_when(
+      first(P_value) < 0.001 ~ "***",
+      first(P_value) < 0.01 ~ "**",
+      first(P_value) < 0.05 ~ "*",
+      is.na(first(P_value)) ~ "",
+      TRUE ~ "N.S."
+    ),
+    # 星号只加在第一组（如左侧柱子上方），避免重复
+    y.star = max(NDVI + 2*SE) + 0.02
+  ) %>% ungroup()
+
+star_df <- all_results %>% 
+  group_by(Panel, Climate) %>% 
+  summarise(
+    Sig = first(Sig),
+    y.star = max(NDVI + 2*SE) + 0.05,
+    .groups = 'drop'
+  ) %>%
+  mutate(Sig_show = ifelse(Sig == "N.S.", "", Sig)) # 或 = Sig
+
+zones_to_summarise <- c("Arid", "Equatorial", "Snow", "Temperate")
+
+weighted_mean <- function(x, w) {
+  sum(x * w, na.rm = TRUE) / sum(w, na.rm = TRUE)
+}
+
+weighted_se <- function(x, w) {
+  wm <- weighted_mean(x, w)
+  eff_n <- sum(w, na.rm = TRUE)^2 / sum(w^2, na.rm = TRUE)
+  sqrt(sum(w * (x - wm)^2, na.rm = TRUE) / ((eff_n - 1) * eff_n / sum(w, na.rm = TRUE)))
+}
+
+all_summary <- all_results %>%
+  filter(Climate %in% zones_to_summarise) %>%
+  group_by(Panel, Group) %>%
+  summarise(
+    NDVI = weighted_mean(NDVI, N),
+    Median = weighted_mean(Median, N),   # 可换成加权中位数算法
+    SE = weighted_se(NDVI, N),
+    N = sum(N, na.rm = TRUE),
+    Climate = "ALL",
+    .groups = 'drop'
+  ) %>%
+  mutate(P_value = NA, Sig = "", y.star = NA)
+
+all_results_extended <- bind_rows(all_results, all_summary) %>%
+  mutate(
+    Climate = factor(Climate, levels = c("Arid","Equatorial","Snow","Temperate","ALL"))
+  )
+
+p <- ggplot(all_results_extended, aes(x=Climate, y=NDVI, fill=Group)) +
+  geom_bar(stat="identity", position=position_dodge(width=0.8), width=0.7) +
+  geom_errorbar(aes(ymin=NDVI-2*SE, ymax=NDVI+2*SE), 
+                width=0.2, position=position_dodge(width=0.8)) +
+  geom_point(
+    aes(y = Median, fill = Group),
+    color = "black",
+    shape = 21,
+    size = 2.5,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_text(
+    data=star_df, aes(x=Climate, y=y.star, label=Sig_show),
+    inherit.aes=FALSE, size=6, fontface="bold"
+  ) +
+  facet_wrap(~Panel, nrow=2, labeller=as_labeller(c(Race="a", Poverty="b", Education="c", Age="d"))) +
+  scale_fill_manual(values=c("#3689AE", "#D45C41", "#3689AE", "#D45C41", "#3689AE", "#D45C41")) +
+  theme_bw(base_size=16) +
+  theme(
+    axis.title.y = element_text(size=16,face="bold"),
+    axis.text =element_text(size=13, face="plain", color="black"),
+    panel.grid.minor=element_blank(),
+    legend.position="bottom",
+    strip.text = element_text(size=15,face="bold"),
+    strip.background = element_blank()
+  ) +
+  ylab("NDVI Z-scores Change") + xlab(NULL) +
+  ylim(-0.8, 0.1)
+
+
+######################################Map
+library(dplyr)
+
+city_race_diff <- Data %>%
+  group_by(ORI) %>%
+  mutate(
+    white_q75 = quantile(white, 0.75, na.rm=TRUE),
+    POC_q75 = quantile(POC, 0.75, na.rm=TRUE)
+  ) %>%
+  summarise(
+    White_mean = mean(delta_KNDVI[white > white_q75], na.rm=TRUE),
+    POC_mean = mean(delta_KNDVI[POC > POC_q75], na.rm=TRUE),
+    Diff = White_mean - POC_mean,
+    White_N = sum(white > white_q75, na.rm=TRUE),
+    POC_N = sum(POC > POC_q75, na.rm=TRUE),
+    p_value = tryCatch({
+      white_vals = delta_KNDVI[white > white_q75]
+      poc_vals = delta_KNDVI[POC > POC_q75]
+      if(length(white_vals) > 1 & length(poc_vals) > 1) {
+        wilcox.test(white_vals, poc_vals)$p.value
+      } else {
+        NA
+      }
+    }, error = function(e) NA),
+    .groups="drop"
+  )
+
+# Poverty
+city_poverty_diff <- Data %>%
+  group_by(ORI) %>%
+  mutate(
+    poverty2_q75 = quantile(poverty2, 0.75, na.rm=TRUE),
+    poverty_q75 = quantile(poverty, 0.75, na.rm=TRUE)
+  ) %>%
+  summarise(
+    Above2Pov_mean = mean(delta_KNDVI[poverty2 > poverty2_q75], na.rm=TRUE),
+    BelowPov_mean = mean(delta_KNDVI[poverty > poverty_q75], na.rm=TRUE),
+    Diff = Above2Pov_mean - BelowPov_mean,
+    Above2Pov_N = sum(poverty2 > poverty2_q75, na.rm=TRUE),
+    BelowPov_N = sum(poverty > poverty_q75, na.rm=TRUE),
+    p_value = tryCatch({
+      above2_vals = delta_KNDVI[poverty2 > poverty2_q75]
+      below_vals  = delta_KNDVI[poverty > poverty_q75]
+      if(length(above2_vals) > 1 & length(below_vals) > 1) {
+        wilcox.test(above2_vals, below_vals)$p.value
+      } else {
+        NA
+      }
+    }, error = function(e) NA),
+    .groups="drop"
+  )
+
+# Education
+city_edu_diff <- Data %>%
+  group_by(ORI) %>%
+  mutate(
+    edu_q75 = quantile(education, 0.75, na.rm=TRUE),
+    edu_q25 = quantile(education, 0.25, na.rm=TRUE)
+  ) %>%
+  summarise(
+    HighEdu_mean = mean(delta_KNDVI[education > edu_q75], na.rm=TRUE),
+    LowEdu_mean = mean(delta_KNDVI[education < edu_q25], na.rm=TRUE),
+    Diff = HighEdu_mean - LowEdu_mean,
+    HighEdu_N = sum(education > edu_q75, na.rm=TRUE),
+    LowEdu_N = sum(education < edu_q25, na.rm=TRUE),
+    p_value = tryCatch({
+      high_vals = delta_KNDVI[education > edu_q75]
+      low_vals  = delta_KNDVI[education < edu_q25]
+      if(length(high_vals) > 1 & length(low_vals) > 1) {
+        wilcox.test(high_vals, low_vals)$p.value
+      } else {
+        NA
+      }
+    }, error = function(e) NA),
+    .groups="drop"
+  )
+
+# Age
+city_age_diff <- Data %>%
+  group_by(ORI) %>%
+  mutate(
+    age_q75 = quantile(Median_age, 0.75, na.rm=TRUE),
+    age_q25 = quantile(Median_age, 0.25, na.rm=TRUE)
+  ) %>%
+  summarise(
+    HighAge_mean = mean(delta_KNDVI[Median_age > age_q75], na.rm=TRUE),
+    LowAge_mean = mean(delta_KNDVI[Median_age < age_q25], na.rm=TRUE),
+    Diff = HighAge_mean - LowAge_mean,
+    HighAge_N = sum(Median_age > age_q75, na.rm=TRUE),
+    LowAge_N = sum(Median_age < age_q25, na.rm=TRUE),
+    p_value = tryCatch({
+      high_vals = delta_KNDVI[Median_age > age_q75]
+      low_vals  = delta_KNDVI[Median_age < age_q25]
+      if(length(high_vals) > 1 & length(low_vals) > 1) {
+        wilcox.test(high_vals, low_vals)$p.value
+      } else {
+        NA
+      }
+    }, error = function(e) NA),
+    .groups="drop"
+  )
+
+race_wide <- city_race_diff %>% select(ORI, Race_Diff = Diff, Race_p = p_value)
+poverty_wide <- city_poverty_diff %>% select(ORI, Poverty_Diff = Diff, Poverty_p = p_value)
+edu_wide <- city_edu_diff %>% select(ORI, Education_Diff = Diff, Education_p = p_value)
+age_wide <- city_age_diff %>% select(ORI, Age_Diff = Diff, Age_p = p_value)
+
+city_all_wide <- race_wide %>%
+  left_join(poverty_wide, by = "ORI") %>%
+  left_join(edu_wide, by = "ORI") %>%
+  left_join(age_wide, by = "ORI")
+
+write.csv(city_all_wide, "city_all_wide_landsat.csv", row.names = FALSE)
+
+
+
+
+
